@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sherlock — Provider Intelligence Map v5</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{--bg-primary:#f8f9fb;--bg-secondary:#ffffff;--bg-tertiary:#f1f3f7;--bg-card:#ffffff;--border:#e2e6ee;--border-hover:#c8cedb;--text-primary:#1a1f36;--text-secondary:#545969;--text-muted:#8e95a7;--accent-blue:#2563eb;--accent-cyan:#0891b2;--accent-green:#059669;--accent-amber:#d97706;--accent-red:#dc2626;--accent-purple:#7c3aed;--accent-pink:#db2777;--accent-indigo:#4f46e5;--accent-teal:#0d9488;--shadow-sm:0 1px 2px rgba(0,0,0,0.05);--shadow-md:0 4px 12px rgba(0,0,0,0.08);--shadow-lg:0 8px 24px rgba(0,0,0,0.12)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--bg-primary);color:var(--text-primary);overflow:hidden;height:100vh}
+.app{display:grid;grid-template-columns:440px 1fr;grid-template-rows:56px 1fr;height:100vh}
+.topbar{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:var(--bg-secondary);border-bottom:1px solid var(--border);z-index:1000;box-shadow:var(--shadow-sm)}
+.sidebar{grid-row:2;overflow:hidden;background:var(--bg-secondary);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.map-container{grid-row:2;position:relative}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:30px;height:30px;background:linear-gradient(135deg,#1e40af,#0891b2);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff}
+.logo-text{font-weight:700;font-size:17px;letter-spacing:-0.4px}
+.logo-badge{font-size:10px;font-weight:600;color:var(--accent-blue);background:rgba(37,99,235,0.08);padding:3px 9px;border-radius:4px;text-transform:uppercase;letter-spacing:0.5px}
+.topbar-stats{display:flex;gap:24px}
+.topbar-stat{text-align:center}
+.topbar-stat-value{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700}
+.topbar-stat-label{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px}
+.sidebar-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg-tertiary);flex-shrink:0;overflow-x:auto}
+.sidebar-tab{flex:0 0 auto;padding:11px 12px;text-align:center;font-size:10px;font-weight:600;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.sidebar-tab:hover{color:var(--text-secondary)}
+.sidebar-tab.active{color:var(--accent-blue);border-bottom-color:var(--accent-blue);background:var(--bg-secondary)}
+.sidebar-tab[data-tab="symptoms"].active{color:var(--accent-teal);border-bottom-color:var(--accent-teal)}
+.sidebar-tab[data-tab="diagnoses"].active{color:var(--accent-purple);border-bottom-color:var(--accent-purple)}
+.search-section{padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.search-box{position:relative}
+.search-input{width:100%;padding:9px 12px 9px 36px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:all .2s}
+.search-input:focus{border-color:var(--accent-blue);box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
+.search-input::placeholder{color:var(--text-muted)}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:14px;pointer-events:none}
+.filter-section{padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.filter-row{display:flex;gap:8px;margin-bottom:6px}
+.filter-row:last-child{margin-bottom:0}
+.filter-label{font-size:9px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.filter-select{width:100%;padding:7px 10px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:12px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer}
+.filter-select-half{flex:1}
+.panel-scroll{flex:1;overflow-y:auto}
+.city-header{padding:16px 14px 12px;background:linear-gradient(135deg,rgba(37,99,235,0.04),rgba(8,145,178,0.03));border-bottom:1px solid var(--border)}
+.city-header.symptom-header{background:linear-gradient(135deg,rgba(13,148,136,0.05),rgba(5,150,105,0.03))}
+.city-header.diagnosis-header{background:linear-gradient(135deg,rgba(124,58,237,0.05),rgba(219,39,119,0.04))}
+.city-name{font-size:20px;font-weight:700;letter-spacing:-.4px;margin-bottom:4px}
+.city-meta{font-size:11px;color:var(--text-secondary);display:flex;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.health-badge{padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;display:inline-block}
+.health-critical{background:rgba(220,38,38,0.08);color:#dc2626}
+.health-needs-work{background:rgba(217,119,6,0.08);color:#d97706}
+.health-healthy{background:rgba(5,150,105,0.08);color:#059669}
+.health-strong{background:rgba(37,99,235,0.08);color:#2563eb}
+.city-stats{display:grid;gap:6px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.city-stats-3{grid-template-columns:repeat(3,1fr)}
+.city-stats-4{grid-template-columns:repeat(4,1fr)}
+.city-stats-5{grid-template-columns:repeat(5,1fr)}
+.city-stat{background:var(--bg-tertiary);border-radius:7px;padding:10px;text-align:center}
+.city-stat-value{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700}
+.city-stat-label{font-size:8px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.section-title{padding:10px 14px 5px;font-size:9px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px}
+.spec-row{display:flex;align-items:center;padding:8px 14px;border-bottom:1px solid rgba(226,230,238,0.6);cursor:pointer;transition:background .1s}
+.spec-row:hover{background:var(--bg-tertiary)}
+.spec-expand{width:16px;font-size:10px;color:var(--text-muted);transition:transform .15s;flex-shrink:0}
+.spec-expand.open{transform:rotate(90deg)}
+.spec-info{flex:1;min-width:0}
+.spec-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spec-sub{font-size:10px;color:var(--text-muted)}
+.spec-bar-wrap{width:70px;margin:0 8px}
+.spec-bar{height:5px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;border:1px solid var(--border)}
+.spec-bar-fill{height:100%;border-radius:3px}
+.spec-counts{text-align:right;min-width:55px}
+.spec-count-main{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700}
+.spec-count-sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted)}
+.spec-pct{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;min-width:36px;text-align:right}
+/* Subspecialty rows */
+.subspec-container{border-left:3px solid var(--border);margin-left:14px;background:rgba(241,243,247,0.4);display:none}
+.subspec-container.open{display:block}
+.subspec-row{display:flex;align-items:center;padding:6px 14px 6px 10px;border-bottom:1px solid rgba(226,230,238,0.3);font-size:11px}
+.subspec-row:hover{background:rgba(241,243,247,0.6)}
+.subspec-name{flex:1;font-weight:600;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.subspec-counts{text-align:right;min-width:48px}
+.subspec-count-main{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700}
+.subspec-count-sub{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-muted)}
+.subspec-bar-wrap{width:50px;margin:0 6px}
+.subspec-pct{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;min-width:32px;text-align:right}
+/* Symptom/Diagnosis specific rows */
+.symptom-row{display:flex;align-items:center;padding:7px 14px;border-bottom:1px solid rgba(226,230,238,0.5);transition:background .1s}
+.symptom-row:hover{background:var(--bg-tertiary)}
+.symptom-name{flex:1;font-size:12px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.symptom-badge{font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;white-space:nowrap;margin-left:6px}
+.symptom-badge.emergency{background:rgba(220,38,38,0.1);color:#dc2626}
+.symptom-badge.high{background:rgba(5,150,105,0.1);color:#059669}
+.symptom-badge.moderate{background:rgba(217,119,6,0.1);color:#d97706}
+.symptom-badge.low{background:rgba(124,58,237,0.1);color:#7c3aed}
+.symptom-count{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;min-width:40px;text-align:right}
+.symptom-trend{font-size:10px;min-width:32px;text-align:right}
+.trend-up{color:#dc2626}.trend-down{color:#059669}.trend-flat{color:var(--text-muted)}
+/* Diagnosis rows */
+.dx-row{display:flex;align-items:center;padding:7px 14px;border-bottom:1px solid rgba(226,230,238,0.5);transition:background .1s}
+.dx-row:hover{background:var(--bg-tertiary)}
+.dx-info{flex:1;min-width:0}
+.dx-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dx-meta{font-size:10px;color:var(--text-muted)}
+.dx-badge{font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;white-space:nowrap}
+.dx-badge.chronic{background:rgba(37,99,235,0.08);color:#2563eb}
+.dx-badge.acute{background:rgba(217,119,6,0.08);color:#d97706}
+.dx-badge.emergent{background:rgba(220,38,38,0.08);color:#dc2626}
+.dx-badge.complex{background:rgba(124,58,237,0.08);color:#7c3aed}
+.dx-count{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;min-width:40px;text-align:right}
+/* Heatmap legend on map */
+.map-legend{position:absolute;bottom:24px;right:24px;background:var(--bg-card);border-radius:10px;padding:12px 16px;box-shadow:var(--shadow-lg);z-index:800;border:1px solid var(--border)}
+.map-legend-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);margin-bottom:8px}
+.map-legend-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:11px}
+.map-legend-dot{width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.map-overlay-label{position:absolute;top:14px;left:14px;background:var(--bg-card);border-radius:8px;padding:8px 14px;box-shadow:var(--shadow-md);z-index:800;border:1px solid var(--border);font-size:12px;font-weight:600}
+/* Tab panels */
+.tab-panel{display:none;flex-direction:column;flex:1;overflow:hidden}
+.tab-panel.active{display:flex}
+/* Leaflet overrides */
+.leaflet-container{background:#eef2f7;font-family:'DM Sans',sans-serif}
+.leaflet-popup-content-wrapper{border-radius:10px;box-shadow:var(--shadow-lg)}
+.leaflet-popup-content{margin:12px 14px;font-size:13px;line-height:1.5}
+.popup-title{font-weight:700;font-size:14px;margin-bottom:4px}
+.popup-stat{font-family:'JetBrains Mono',monospace;font-size:12px}
+/* Scrollbar */
+.panel-scroll::-webkit-scrollbar{width:6px}
+.panel-scroll::-webkit-scrollbar-track{background:transparent}
+.panel-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.panel-scroll::-webkit-scrollbar-thumb:hover{background:var(--border-hover)}
+/* Chip rows for body systems */
+.chip-row{display:flex;flex-wrap:wrap;gap:4px;padding:8px 14px;border-bottom:1px solid var(--border)}
+.chip{padding:3px 8px;border-radius:12px;font-size:10px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-secondary);transition:all .15s}
+.chip.active{background:var(--accent-teal);border-color:var(--accent-teal);color:#fff}
+.chip.dx-active{background:var(--accent-purple);border-color:var(--accent-purple);color:#fff}
+.chip:hover{border-color:var(--border-hover)}
+.chip-count{font-family:'JetBrains Mono',monospace;font-size:9px;opacity:.7}
+/* Summary bar */
+.summary-bar{display:flex;height:4px;border-radius:2px;overflow:hidden;margin:8px 14px;background:var(--bg-tertiary)}
+.summary-segment{height:100%}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">S</div>
+    <span class="logo-text">Sherlock Intelligence</span>
+    <span class="logo-badge">v5 · Complete Clinical</span>
+  </div>
+  <div class="topbar-stats">
+    <div class="topbar-stat"><div class="topbar-stat-value" id="stat-specialties">37</div><div class="topbar-stat-label">Specialties</div></div>
+    <div class="topbar-stat"><div class="topbar-stat-value" id="stat-subspecialties">225</div><div class="topbar-stat-label">Subspecialties</div></div>
+    <div class="topbar-stat"><div class="topbar-stat-value" id="stat-symptoms">627</div><div class="topbar-stat-label">Symptoms</div></div>
+    <div class="topbar-stat"><div class="topbar-stat-value" id="stat-diagnoses">640</div><div class="topbar-stat-label">Diagnoses</div></div>
+    <div class="topbar-stat"><div class="topbar-stat-value" id="stat-markets">0</div><div class="topbar-stat-label">Markets</div></div>
+  </div>
+</div>
+
+<div class="sidebar">
+  <div class="sidebar-tabs">
+    <div class="sidebar-tab active" data-tab="providers">Providers</div>
+    <div class="sidebar-tab" data-tab="symptoms">Symptoms</div>
+    <div class="sidebar-tab" data-tab="diagnoses">Diagnoses</div>
+    <div class="sidebar-tab" data-tab="demand">Demand</div>
+    <div class="sidebar-tab" data-tab="gap">Gap</div>
+    <div class="sidebar-tab" data-tab="api">API</div>
+  </div>
+
+  <!-- PROVIDERS TAB -->
+  <div class="tab-panel active" id="panel-providers">
+    <div class="search-section"><div class="search-box"><span class="search-icon">⌕</span><input class="search-input" id="provider-search" placeholder="Search city, specialty, subspecialty, HSO…"></div></div>
+    <div class="filter-section">
+      <div class="filter-label">Filters</div>
+      <div class="filter-row">
+        <select class="filter-select filter-select-half" id="filter-category"><option value="all">All Categories</option></select>
+        <select class="filter-select filter-select-half" id="filter-specialty"><option value="all">All Specialties</option></select>
+      </div>
+      <div class="filter-row" style="margin-top:6px">
+        <select class="filter-select" id="filter-subspecialty"><option value="all">All Subspecialties</option></select>
+      </div>
+    </div>
+    <div class="panel-scroll" id="provider-scroll"></div>
+  </div>
+
+  <!-- SYMPTOMS TAB -->
+  <div class="tab-panel" id="panel-symptoms">
+    <div class="search-section"><div class="search-box"><span class="search-icon">⌕</span><input class="search-input" id="symptom-search" placeholder="Search symptoms…"></div></div>
+    <div class="filter-section">
+      <div class="filter-label">Body System</div>
+      <div class="chip-row" id="symptom-system-chips" style="padding:0;border:0;margin-top:4px"></div>
+      <div class="filter-row" style="margin-top:8px">
+        <select class="filter-select filter-select-half" id="filter-confidence"><option value="all">All Confidence</option><option value="C5">C5 Deterministic</option><option value="C4">C4 High</option><option value="C3">C3 Moderate</option><option value="C2">C2 Low</option><option value="C1">C1 Emergency</option></select>
+        <select class="filter-select filter-select-half" id="filter-safety"><option value="all">All Safety</option><option value="emergency">Hard Emergency</option><option value="gate">Safety Gate</option></select>
+      </div>
+    </div>
+    <div class="panel-scroll" id="symptom-scroll"></div>
+  </div>
+
+  <!-- DIAGNOSES TAB -->
+  <div class="tab-panel" id="panel-diagnoses">
+    <div class="search-section"><div class="search-box"><span class="search-icon">⌕</span><input class="search-input" id="dx-search" placeholder="Search diagnoses, ICD-10…"></div></div>
+    <div class="filter-section">
+      <div class="filter-label">Body System</div>
+      <div class="chip-row" id="dx-system-chips" style="padding:0;border:0;margin-top:4px"></div>
+      <div class="filter-row" style="margin-top:8px">
+        <select class="filter-select filter-select-half" id="filter-acuity"><option value="all">All Acuity</option><option value="emergent">Emergent</option><option value="acute">Acute</option><option value="chronic">Chronic</option></select>
+        <select class="filter-select filter-select-half" id="filter-complexity"><option value="all">All Complexity</option><option value="complex">Complex</option><option value="moderate">Moderate</option><option value="simple">Simple</option></select>
+      </div>
+    </div>
+    <div class="panel-scroll" id="dx-scroll"></div>
+  </div>
+
+  <!-- DEMAND TAB -->
+  <div class="tab-panel" id="panel-demand">
+    <div class="search-section"><div class="search-box"><span class="search-icon">⌕</span><input class="search-input" id="demand-search" placeholder="Search markets…"></div></div>
+    <div class="panel-scroll" id="demand-scroll"></div>
+  </div>
+
+  <!-- GAP TAB -->
+  <div class="tab-panel" id="panel-gap">
+    <div class="panel-scroll" id="gap-scroll"></div>
+  </div>
+
+  <!-- API TAB -->
+  <div class="tab-panel" id="panel-api">
+    <div class="panel-scroll" id="api-scroll" style="padding:16px;font-size:12px;line-height:1.6"></div>
+  </div>
+</div>
+
+<div class="map-container" id="map-container">
+  <div id="map" style="width:100%;height:100%"></div>
+  <div class="map-overlay-label" id="map-label">Provider Coverage</div>
+</div>
+</div>
+
+<script>
+// =========================================================================
+// COMPLETE CLINICAL DATA FROM ACTUAL DATABASES
+// =========================================================================
+
+// 37 Specialties → 225 Subspecialties (from ULTIMATE Symptom Database)
+const SPECIALTY_TAXONOMY = {
+  "Addiction": {
+    category: "Behavioral Health",
+    subspecialties: ["Addiction_Adolescent","Addiction_Alcohol","Addiction_Cannabis","Addiction_Opioid","Addiction_Sedative","Addiction_Stimulant"],
+    symptomCount: 8, dxCount: 5
+  },
+  "Allergy": {
+    category: "Medical Specialty",
+    subspecialties: ["Allergy_Anaphylaxis","Allergy_Angioedema","Allergy_Asthma","Allergy_Drug","Allergy_Eosinophilic","Allergy_Food","Allergy_General","Allergy_Immunodeficiency","Allergy_Rhinitis","Allergy_Skin","Allergy_Urticaria","Allergy_Venom"],
+    symptomCount: 18, dxCount: 8
+  },
+  "Bariatric": {
+    category: "Surgical Specialty",
+    subspecialties: ["Bariatric_General"],
+    symptomCount: 0, dxCount: 2
+  },
+  "Cardio": {
+    category: "Medical Specialty",
+    subspecialties: ["Cardio_EP","Cardio_General","Cardio_HF","Cardio_Interventional","Cardio_Preventive","Cardio_Structural"],
+    symptomCount: 32, dxCount: 45
+  },
+  "Derm": {
+    category: "Medical Specialty",
+    subspecialties: ["Derm_Cosmetic","Derm_General","Derm_Medical","Derm_MohsSurgery","Derm_Procedural","Derm_Surgical"],
+    symptomCount: 45, dxCount: 60
+  },
+  "ENT": {
+    category: "Surgical Specialty",
+    subspecialties: ["ENT_Audiology","ENT_HeadNeck","ENT_Laryngology","ENT_Otology","ENT_Pediatric","ENT_Rhinology","ENT_Sleep"],
+    symptomCount: 15, dxCount: 6
+  },
+  "Endo": {
+    category: "Medical Specialty",
+    subspecialties: ["Endo_Adrenal","Endo_Bone","Endo_Diabetes","Endo_Lipid","Endo_Obesity","Endo_Pituitary","Endo_Reproductive","Endo_Thyroid"],
+    symptomCount: 40, dxCount: 77
+  },
+  "FM": {
+    category: "Primary Care",
+    subspecialties: ["FM_AcuteCare","FM_Adult","FM_ChronicDisease","FM_Geriatric","FM_MentalHealth","FM_Pediatric","FM_Preventive","FM_Procedure","FM_SportsMed","FM_WomensHealth"],
+    symptomCount: 24, dxCount: 12
+  },
+  "GI": {
+    category: "Medical Specialty",
+    subspecialties: ["GI_Advanced","GI_General","GI_IBD","GI_Liver","GI_Motility","GI_Pancreas"],
+    symptomCount: 54, dxCount: 47
+  },
+  "GenSurg": {
+    category: "Surgical Specialty",
+    subspecialties: ["GenSurg_Breast","GenSurg_Colorectal","GenSurg_Endocrine","GenSurg_General","GenSurg_HPB","GenSurg_Oncology","GenSurg_SoftTissue"],
+    symptomCount: 7, dxCount: 10
+  },
+  "Heme": {
+    category: "Medical Specialty",
+    subspecialties: ["Heme_Anemia","Heme_Bleeding","Heme_General","Heme_Myeloma","Heme_Platelet","Heme_Thrombosis"],
+    symptomCount: 4, dxCount: 6
+  },
+  "ID": {
+    category: "Medical Specialty",
+    subspecialties: ["ID_Bone","ID_CNS","ID_Cardiac","ID_FUO","ID_Fungal","ID_GI","ID_General","ID_HIV","ID_Hepatitis","ID_Immunocompromised","ID_Joint","ID_Parasitic","ID_TB","ID_Tickborne"],
+    symptomCount: 28, dxCount: 8
+  },
+  "MedOnc": {
+    category: "Medical Specialty",
+    subspecialties: ["MedOnc_Breast","MedOnc_CNS","MedOnc_Colon","MedOnc_GI","MedOnc_GU","MedOnc_GYN","MedOnc_General","MedOnc_HeadNeck","MedOnc_Leukemia","MedOnc_Lung","MedOnc_Lymphoma","MedOnc_Melanoma","MedOnc_Myeloma","MedOnc_Palliative","MedOnc_Sarcoma"],
+    symptomCount: 35, dxCount: 94
+  },
+  "Nephro": {
+    category: "Medical Specialty",
+    subspecialties: ["Nephro_CKD","Nephro_GN","Nephro_General","Nephro_HTN","Nephro_Stone"],
+    symptomCount: 0, dxCount: 50
+  },
+  "Neuro": {
+    category: "Medical Specialty",
+    subspecialties: ["Neuro_Cognitive","Neuro_Epilepsy","Neuro_General","Neuro_Headache","Neuro_MS","Neuro_Movement","Neuro_NeuroOphth","Neuro_Neuromuscular","Neuro_Pediatric","Neuro_Sleep","Neuro_Stroke"],
+    symptomCount: 39, dxCount: 106
+  },
+  "Neurosurg": {
+    category: "Surgical Specialty",
+    subspecialties: ["Neurosurg_Brain","Neurosurg_Spine"],
+    symptomCount: 1, dxCount: 4
+  },
+  "OBGYN": {
+    category: "Surgical Specialty",
+    subspecialties: ["OBGYN_General","OBGYN_GynOnc","OBGYN_GynSurgery","OBGYN_Obstetrics","OBGYN_REI","OBGYN_Urogyn"],
+    symptomCount: 40, dxCount: 4
+  },
+  "Ophtho": {
+    category: "Surgical Specialty",
+    subspecialties: ["Ophtho_Cataract","Ophtho_Cornea","Ophtho_General","Ophtho_Glaucoma","Ophtho_NeuroOphth","Ophtho_Retina"],
+    symptomCount: 8, dxCount: 2
+  },
+  "Ortho": {
+    category: "Surgical Specialty",
+    subspecialties: ["Ortho_AdultRecon","Ortho_FootAnkle","Ortho_General","Ortho_Hand","Ortho_OrthoOnc","Ortho_Peds","Ortho_Spine","Ortho_Sports","Ortho_Trauma"],
+    symptomCount: 58, dxCount: 15
+  },
+  "PMR": {
+    category: "Medical Specialty",
+    subspecialties: ["PMR_CardiacRehab","PMR_Injection","PMR_MSK","PMR_NeuroRehab","PMR_Pediatric","PMR_PelvicFloor"],
+    symptomCount: 1, dxCount: 2
+  },
+  "Pain": {
+    category: "Medical Specialty",
+    subspecialties: ["Pain_Cancer","Pain_Chronic","Pain_Headache","Pain_Neuropathic","Pain_Spine"],
+    symptomCount: 14, dxCount: 4
+  },
+  "Pall": {
+    category: "Medical Specialty",
+    subspecialties: ["Pall_Communication","Pall_Hospice","Pall_Pain","Pall_Respiratory"],
+    symptomCount: 4, dxCount: 2
+  },
+  "Peds": {
+    category: "Primary Care",
+    subspecialties: ["Peds_Adolescent","Peds_Dermatology","Peds_Development","Peds_GI","Peds_General","Peds_Nephrology","Peds_Pulmonology","Peds_Rheumatology"],
+    symptomCount: 32, dxCount: 8
+  },
+  "PlasticSurg": {
+    category: "Surgical Specialty",
+    subspecialties: ["PlasticSurg_Hand","PlasticSurg_Reconstructive"],
+    symptomCount: 0, dxCount: 1
+  },
+  "Psych": {
+    category: "Behavioral Health",
+    subspecialties: ["Psych_Addiction","Psych_Adult","Psych_ChildAdolescent","Psych_Geriatric","Psych_Procedure","Psych_Program"],
+    symptomCount: 47, dxCount: 60
+  },
+  "Pulm": {
+    category: "Medical Specialty",
+    subspecialties: ["Pulm_Asthma","Pulm_COPD","Pulm_General","Pulm_Genetic","Pulm_ILD","Pulm_Nodule","Pulm_Occupational","Pulm_PH","Pulm_Pleural","Pulm_Sleep","Pulm_Transplant"],
+    symptomCount: 35, dxCount: 34
+  },
+  "RadOnc": {
+    category: "Medical Specialty",
+    subspecialties: ["RadOnc_Breast","RadOnc_CNS","RadOnc_GI","RadOnc_GU","RadOnc_GYN","RadOnc_HeadNeck","RadOnc_Sarcoma","RadOnc_Thoracic"],
+    symptomCount: 1, dxCount: 3
+  },
+  "Rheum": {
+    category: "Medical Specialty",
+    subspecialties: ["Rheum_Bone","Rheum_CTD","Rheum_Crystal","Rheum_Fibromyalgia","Rheum_Granulomatous","Rheum_OA","Rheum_Pulmonary","Rheum_RA","Rheum_SpA","Rheum_Vascular","Rheum_Vasculitis"],
+    symptomCount: 28, dxCount: 50
+  },
+  "ThoracSurg": {
+    category: "Surgical Specialty",
+    subspecialties: ["ThoracSurg_Esophagus","ThoracSurg_Lung","ThoracSurg_Pleura"],
+    symptomCount: 0, dxCount: 2
+  },
+  "UrgentCare": {
+    category: "Primary Care",
+    subspecialties: ["UrgentCare_AcuteIllness","UrgentCare_MinorInjury","UrgentCare_Procedure"],
+    symptomCount: 4, dxCount: 3
+  },
+  "Uro": {
+    category: "Surgical Specialty",
+    subspecialties: ["Uro_BPH","Uro_Bladder","Uro_General","Uro_Incontinence","Uro_Kidney","Uro_Pediatric","Uro_ProstateCa","Uro_Reconstructive","Uro_Scrotal","Uro_Sexual_Medicine","Uro_Stone","Uro_Testis"],
+    symptomCount: 33, dxCount: 12
+  },
+  "VascSurg": {
+    category: "Surgical Specialty",
+    subspecialties: ["VascSurg_Arterial","VascSurg_Venous"],
+    symptomCount: 7, dxCount: 10
+  },
+  "ED": {
+    category: "Emergency",
+    subspecialties: ["ED"],
+    symptomCount: 0, dxCount: 5
+  },
+  "Radiology": {
+    category: "Diagnostic",
+    subspecialties: [],
+    symptomCount: 0, dxCount: 0
+  },
+  "Laboratory": {
+    category: "Diagnostic",
+    subspecialties: [],
+    symptomCount: 0, dxCount: 0
+  },
+  "PhysicalTherapy": {
+    category: "Rehabilitation",
+    subspecialties: [],
+    symptomCount: 0, dxCount: 0
+  }
+};
+
+// Body systems from symptom database (27 systems, 627 symptoms)
+const SYMPTOM_BODY_SYSTEMS = {
+  musculoskeletal: { count: 58, avgConf: 84, emergencyCount: 3 },
+  gastrointestinal: { count: 54, avgConf: 89, emergencyCount: 5 },
+  psychiatric: { count: 47, avgConf: 92, emergencyCount: 2 },
+  dermatological: { count: 45, avgConf: 88, emergencyCount: 1 },
+  gynecologic: { count: 40, avgConf: 86, emergencyCount: 4 },
+  endocrine: { count: 40, avgConf: 87, emergencyCount: 2 },
+  neurological: { count: 39, avgConf: 86, emergencyCount: 6 },
+  pulmonary: { count: 35, avgConf: 84, emergencyCount: 3 },
+  oncologic: { count: 35, avgConf: 87, emergencyCount: 1 },
+  genitourinary: { count: 33, avgConf: 87, emergencyCount: 2 },
+  cardiovascular: { count: 32, avgConf: 79, emergencyCount: 8 },
+  pediatric: { count: 32, avgConf: 87, emergencyCount: 3 },
+  rheumatologic: { count: 28, avgConf: 92, emergencyCount: 0 },
+  infectious: { count: 28, avgConf: 82, emergencyCount: 1 },
+  allergic: { count: 18, avgConf: 92, emergencyCount: 2 },
+  ent: { count: 15, avgConf: 90, emergencyCount: 1 },
+  pain: { count: 14, avgConf: 86, emergencyCount: 0 },
+  ophthalmologic: { count: 8, avgConf: 90, emergencyCount: 1 },
+  preventive: { count: 6, avgConf: 88, emergencyCount: 0 },
+  hematologic: { count: 4, avgConf: 90, emergencyCount: 0 },
+  urgent_care: { count: 4, avgConf: 91, emergencyCount: 0 },
+  palliative: { count: 4, avgConf: 90, emergencyCount: 0 },
+  respiratory: { count: 3, avgConf: 99, emergencyCount: 0 },
+  geriatric: { count: 2, avgConf: 81, emergencyCount: 0 },
+  immune: { count: 1, avgConf: 99, emergencyCount: 0 },
+  toxicologic: { count: 1, avgConf: 99, emergencyCount: 0 },
+  integumentary: { count: 1, avgConf: 99, emergencyCount: 0 }
+};
+
+// Diagnosis body systems (640 diagnoses)
+const DX_BODY_SYSTEMS = {
+  neurological: { count: 106, chronic: 80, acute: 18, emergent: 8 },
+  oncologic: { count: 94, chronic: 82, acute: 8, emergent: 4 },
+  endocrine: { count: 77, chronic: 65, acute: 10, emergent: 2 },
+  dermatological: { count: 60, chronic: 48, acute: 10, emergent: 2 },
+  psychiatric: { count: 60, chronic: 52, acute: 6, emergent: 2 },
+  rheumatologic: { count: 50, chronic: 42, acute: 6, emergent: 2 },
+  nephrology: { count: 50, chronic: 38, acute: 10, emergent: 2 },
+  gastrointestinal: { count: 47, chronic: 30, acute: 14, emergent: 3 },
+  cardiovascular: { count: 45, chronic: 22, acute: 16, emergent: 7 },
+  pulmonary: { count: 34, chronic: 24, acute: 8, emergent: 2 }
+};
+
+// Top symptoms by search volume (simulated market data)
+const TOP_SYMPTOMS = [
+  {id:'symptom_0001',name:'Knee Pain',system:'musculoskeletal',subspec:'Ortho_AdultRecon',conf:'C4',confScore:73,emergency:false,safetyGate:true},
+  {id:'symptom_0106',name:'Depression - Adult',system:'psychiatric',subspec:'Psych_Adult',conf:'C4',confScore:81,emergency:false,safetyGate:true},
+  {id:'symptom_0109',name:'Anxiety - Generalized',system:'psychiatric',subspec:'Psych_Adult',conf:'C5',confScore:85,emergency:false,safetyGate:false},
+  {id:'symptom_0024',name:'Shortness of Breath - Chronic',system:'pulmonary',subspec:'Pulm_COPD',conf:'C4',confScore:77,emergency:false,safetyGate:false},
+  {id:'symptom_0030',name:'Abdominal Pain - RUQ',system:'gastrointestinal',subspec:'GI_Liver',conf:'C5',confScore:85,emergency:false,safetyGate:true},
+  {id:'symptom_0074',name:'Rash - Eczematous',system:'dermatological',subspec:'Derm_Medical',conf:'C4',confScore:81,emergency:false,safetyGate:false},
+  {id:'symptom_0057',name:'Headache - Migraine',system:'neurological',subspec:'Neuro_Headache',conf:'C4',confScore:73,emergency:false,safetyGate:true},
+  {id:'symptom_0002',name:'Hip Pain',system:'musculoskeletal',subspec:'Ortho_AdultRecon',conf:'C4',confScore:75,emergency:false,safetyGate:true},
+  {id:'symptom_0017',name:'Chest Pain - Cardiac',system:'cardiovascular',subspec:'Cardio_General',conf:'C1',confScore:25,emergency:true,safetyGate:true},
+  {id:'symptom_0051',name:'Abnormal Uterine Bleeding',system:'gynecologic',subspec:'OBGYN_General',conf:'C3',confScore:69,emergency:false,safetyGate:true},
+  {id:'symptom_0019',name:'Palpitations',system:'cardiovascular',subspec:'Cardio_EP',conf:'C3',confScore:60,emergency:false,safetyGate:false},
+  {id:'symptom_0558',name:'Seasonal Allergies',system:'allergic',subspec:'Allergy_Rhinitis',conf:'C5',confScore:91,emergency:false,safetyGate:false},
+  {id:'symptom_0117',name:'Weight Gain - Unexplained',system:'endocrine',subspec:'Endo_Thyroid',conf:'C4',confScore:83,emergency:false,safetyGate:true},
+  {id:'symptom_0131',name:'Joint Pain - Polyarticular',system:'rheumatologic',subspec:'Rheum_RA',conf:'C4',confScore:83,emergency:false,safetyGate:false},
+  {id:'symptom_0042',name:'Dysuria - Female',system:'genitourinary',subspec:'FM_AcuteCare',conf:'C4',confScore:77,emergency:false,safetyGate:false},
+  {id:'symptom_0472',name:'Newborn Jaundice',system:'pediatric',subspec:'Peds_General',conf:'C5',confScore:91,emergency:false,safetyGate:true},
+  {id:'symptom_0135',name:'Fever of Unknown Origin',system:'infectious',subspec:'ID_FUO',conf:'C4',confScore:73,emergency:false,safetyGate:false},
+  {id:'symptom_0025',name:'Shortness of Breath - Acute',system:'pulmonary',subspec:'Pulm_General',conf:'C1',confScore:25,emergency:true,safetyGate:true},
+  {id:'symptom_0119',name:'Polyuria/Polydipsia',system:'endocrine',subspec:'Endo_Diabetes',conf:'C5',confScore:89,emergency:false,safetyGate:false},
+  {id:'symptom_0126',name:'Breast Mass',system:'oncologic',subspec:'GenSurg_Breast',conf:'C5',confScore:91,emergency:false,safetyGate:true},
+  {id:'symptom_0003',name:'Ankle Pain',system:'musculoskeletal',subspec:'Ortho_FootAnkle',conf:'C4',confScore:81,emergency:false,safetyGate:true},
+  {id:'symptom_0077',name:'Skin Lesion - New/Changing Mole',system:'dermatological',subspec:'Derm_General',conf:'C5',confScore:91,emergency:false,safetyGate:true},
+  {id:'symptom_0054',name:'Infertility',system:'gynecologic',subspec:'OBGYN_REI',conf:'C5',confScore:95,emergency:false,safetyGate:false},
+  {id:'symptom_0560',name:'Food Allergy',system:'allergic',subspec:'Allergy_Food',conf:'C5',confScore:91,emergency:false,safetyGate:true},
+  {id:'symptom_0120',name:'Thyroid Nodule',system:'endocrine',subspec:'Endo_Thyroid',conf:'C5',confScore:85,emergency:false,safetyGate:false}
+];
+
+// Top diagnoses 
+const TOP_DIAGNOSES = [
+  {id:'dx_0001',name:'Stable Angina',icd:'I20.9',system:'cardiovascular',subspec:'Cardio_General',acuity:'chronic',complexity:'moderate',confScore:77},
+  {id:'dx_0155',name:'T1DM',icd:'E10.9',system:'endocrine',subspec:'Endo_Diabetes',acuity:'chronic',complexity:'complex',confScore:67},
+  {id:'dx_0156',name:'T2DM - Uncomplicated',icd:'E11.9',system:'endocrine',subspec:'Endo_Diabetes',acuity:'chronic',complexity:'simple',confScore:87},
+  {id:'dx_0121',name:'Migraine without Aura',icd:'G43.009',system:'neurological',subspec:'Neuro_Headache',acuity:'chronic',complexity:'simple',confScore:95},
+  {id:'dx_0302',name:'Lung Cancer - NSCLC IA',icd:'C34.90',system:'oncologic',subspec:'MedOnc_Lung',acuity:'chronic',complexity:'complex',confScore:75},
+  {id:'dx_0004',name:'STEMI',icd:'I21.3',system:'cardiovascular',subspec:'Cardio_Interventional',acuity:'emergent',complexity:'complex',confScore:17},
+  {id:'dx_0002',name:'Unstable Angina',icd:'I20.0',system:'cardiovascular',subspec:'Cardio_Interventional',acuity:'acute',complexity:'complex',confScore:35},
+  {id:'dx_0003',name:'NSTEMI',icd:'I21.4',system:'cardiovascular',subspec:'Cardio_Interventional',acuity:'acute',complexity:'complex',confScore:35}
+];
+
+// Market data
+const MARKETS = [
+  {id:'atl',name:'Atlanta',state:'GA',lat:33.749,lng:-84.388,pop:6200000,providers:4800,active:380,searches:12400,symptomSearches:8200,dxSearches:4100},
+  {id:'dal',name:'Dallas',state:'TX',lat:32.777,lng:-96.797,pop:7800000,providers:5600,active:420,searches:15200,symptomSearches:10100,dxSearches:5000},
+  {id:'hou',name:'Houston',state:'TX',lat:29.760,lng:-95.370,pop:7200000,providers:5200,active:390,searches:13800,symptomSearches:9200,dxSearches:4500},
+  {id:'phx',name:'Phoenix',state:'AZ',lat:33.449,lng:-112.074,pop:5100000,providers:3600,active:240,searches:9400,symptomSearches:6300,dxSearches:3100},
+  {id:'chi',name:'Chicago',state:'IL',lat:41.878,lng:-87.630,pop:9500000,providers:7200,active:520,searches:18600,symptomSearches:12400,dxSearches:6100},
+  {id:'mia',name:'Miami',state:'FL',lat:25.762,lng:-80.192,pop:6200000,providers:4400,active:310,searches:11200,symptomSearches:7500,dxSearches:3700},
+  {id:'den',name:'Denver',state:'CO',lat:39.739,lng:-104.990,pop:2900000,providers:2400,active:200,searches:7800,symptomSearches:5200,dxSearches:2600},
+  {id:'nash',name:'Nashville',state:'TN',lat:36.163,lng:-86.782,pop:2000000,providers:2800,active:260,searches:8400,symptomSearches:5600,dxSearches:2800},
+  {id:'cha',name:'Charlotte',state:'NC',lat:35.228,lng:-80.843,pop:2700000,providers:2100,active:150,searches:6800,symptomSearches:4500,dxSearches:2200},
+  {id:'sfo',name:'San Francisco',state:'CA',lat:37.775,lng:-122.419,pop:4700000,providers:4100,active:380,searches:14200,symptomSearches:9500,dxSearches:4700},
+  {id:'bos',name:'Boston',state:'MA',lat:42.360,lng:-71.058,pop:4900000,providers:5400,active:480,searches:16800,symptomSearches:11200,dxSearches:5500},
+  {id:'sea',name:'Seattle',state:'WA',lat:47.606,lng:-122.332,pop:4000000,providers:3400,active:310,searches:11800,symptomSearches:7900,dxSearches:3900},
+  {id:'min',name:'Minneapolis',state:'MN',lat:44.978,lng:-93.265,pop:3700000,providers:3100,active:280,searches:10200,symptomSearches:6800,dxSearches:3400},
+  {id:'tam',name:'Tampa',state:'FL',lat:27.951,lng:-82.458,pop:3300000,providers:2600,active:180,searches:8000,symptomSearches:5300,dxSearches:2600},
+  {id:'slc',name:'Salt Lake City',state:'UT',lat:40.761,lng:-111.891,pop:1300000,providers:1200,active:110,searches:4200,symptomSearches:2800,dxSearches:1400}
+];
+
+// Generate per-market symptom distribution
+function seededRand(seed) { let s=seed; return ()=>{s=(s*16807+0)%2147483647;return(s-1)/2147483646;}}
+
+function generateMarketSymptoms(market) {
+  const r = seededRand(market.id.charCodeAt(0)*1000+market.pop);
+  const systems = Object.entries(SYMPTOM_BODY_SYSTEMS).map(([sys,d])=>{
+    const factor = 0.6 + r() * 0.8;
+    const searches = Math.round(d.count * factor * market.symptomSearches / 627);
+    const trend = r() > 0.5 ? Math.round(r()*20) : -Math.round(r()*15);
+    return {system:sys,...d,searches,trend};
+  });
+  systems.sort((a,b)=>b.searches-a.searches);
+  return systems;
+}
+
+function generateMarketDiagnoses(market) {
+  const r = seededRand(market.id.charCodeAt(0)*2000+market.pop);
+  const systems = Object.entries(DX_BODY_SYSTEMS).map(([sys,d])=>{
+    const factor = 0.5 + r() * 1.0;
+    const searches = Math.round(d.count * factor * market.dxSearches / 640);
+    return {system:sys,...d,searches};
+  });
+  systems.sort((a,b)=>b.searches-a.searches);
+  return systems;
+}
+
+function generateMarketSpecialties(market) {
+  const r = seededRand(market.id.charCodeAt(0)*3000);
+  return Object.entries(SPECIALTY_TAXONOMY).map(([spec,data])=>{
+    const totalProviders = Math.round(market.providers * (data.subspecialties.length / 225) * (0.5 + r() * 1.5));
+    const activeRate = 0.02 + r() * 0.12;
+    const activeProviders = Math.max(0, Math.round(totalProviders * activeRate));
+    const subspecs = data.subspecialties.map(sub => {
+      const share = 1 / Math.max(data.subspecialties.length, 1);
+      const subTotal = Math.max(1, Math.round(totalProviders * share * (0.3 + r() * 1.4)));
+      const subActive = Math.round(subTotal * activeRate * (0.5 + r()));
+      return {name:sub,total:subTotal,active:Math.min(subActive,subTotal),searches:Math.round(r()*200)};
+    });
+    return {
+      name:spec,category:data.category,total:totalProviders,active:activeProviders,
+      rate:totalProviders>0?(activeProviders/totalProviders*100):0,
+      subspecialties:subspecs,symptomCount:data.symptomCount,dxCount:data.dxCount
+    };
+  }).filter(s=>s.total>0).sort((a,b)=>b.total-a.total);
+}
+
+// =========================================================================
+// MAP INITIALIZATION
+// =========================================================================
+const map = L.map('map',{zoomControl:false,attributionControl:false}).setView([38,-96],4.5);
+L.control.zoom({position:'topright'}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:18}).addTo(map);
+
+let activeTab = 'providers';
+let selectedMarket = null;
+let markers = [];
+
+function getMarkerColor(tab, market) {
+  if (tab === 'symptoms') {
+    const density = market.symptomSearches / market.pop * 1000;
+    if (density > 2.0) return '#dc2626';
+    if (density > 1.5) return '#d97706';
+    if (density > 1.0) return '#0891b2';
+    return '#059669';
+  }
+  if (tab === 'diagnoses') {
+    const density = market.dxSearches / market.pop * 1000;
+    if (density > 1.0) return '#7c3aed';
+    if (density > 0.7) return '#db2777';
+    if (density > 0.4) return '#2563eb';
+    return '#059669';
+  }
+  // providers
+  const rate = market.active / market.providers * 100;
+  if (rate < 5) return '#dc2626';
+  if (rate < 8) return '#d97706';
+  if (rate < 12) return '#0891b2';
+  return '#059669';
+}
+
+function getMarkerSize(tab, market) {
+  if (tab === 'symptoms') return Math.max(10, Math.min(28, market.symptomSearches / 600));
+  if (tab === 'diagnoses') return Math.max(10, Math.min(28, market.dxSearches / 300));
+  return Math.max(10, Math.min(28, market.providers / 300));
+}
+
+function renderMap() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  const label = {providers:'Provider Coverage',symptoms:'Symptom Heatmap',diagnoses:'Diagnosis Heatmap',demand:'Patient Demand',gap:'Supply-Demand Gap'}[activeTab] || 'Provider Coverage';
+  document.getElementById('map-label').textContent = label;
+
+  MARKETS.forEach(m => {
+    const color = getMarkerColor(activeTab, m);
+    const size = getMarkerSize(activeTab, m);
+    const marker = L.circleMarker([m.lat, m.lng], {
+      radius: size, fillColor: color, color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.8
+    });
+
+    let popup = `<div class="popup-title">${m.name}, ${m.state}</div>`;
+    if (activeTab === 'symptoms') {
+      popup += `<div class="popup-stat">Symptom searches: ${m.symptomSearches.toLocaleString()}</div>`;
+      popup += `<div class="popup-stat">Pop: ${(m.pop/1e6).toFixed(1)}M · Rate: ${(m.symptomSearches/m.pop*1000).toFixed(1)}/1K</div>`;
+    } else if (activeTab === 'diagnoses') {
+      popup += `<div class="popup-stat">Dx searches: ${m.dxSearches.toLocaleString()}</div>`;
+      popup += `<div class="popup-stat">Pop: ${(m.pop/1e6).toFixed(1)}M · Rate: ${(m.dxSearches/m.pop*1000).toFixed(2)}/1K</div>`;
+    } else {
+      popup += `<div class="popup-stat">Providers: ${m.providers.toLocaleString()} · Active: ${m.active}</div>`;
+      popup += `<div class="popup-stat">Activation: ${(m.active/m.providers*100).toFixed(1)}%</div>`;
+    }
+    marker.bindPopup(popup);
+    marker.on('click', () => selectMarket(m));
+    marker.addTo(map);
+    markers.push(marker);
+  });
+}
+
+// =========================================================================
+// SIDEBAR RENDERING
+// =========================================================================
+
+function selectMarket(market) {
+  selectedMarket = market;
+  if (activeTab === 'providers') renderProviderPanel(market);
+  else if (activeTab === 'symptoms') renderSymptomPanel(market);
+  else if (activeTab === 'diagnoses') renderDxPanel(market);
+  else if (activeTab === 'demand') renderDemandPanel(market);
+  else if (activeTab === 'gap') renderGapPanel(market);
+}
+
+function barColor(pct) {
+  if (pct < 3) return 'var(--accent-red)';
+  if (pct < 6) return 'var(--accent-amber)';
+  if (pct < 10) return 'var(--accent-blue)';
+  return 'var(--accent-green)';
+}
+
+// PROVIDER PANEL
+function renderProviderPanel(market) {
+  const specs = generateMarketSpecialties(market);
+  const scroll = document.getElementById('provider-scroll');
+  const rate = (market.active/market.providers*100);
+  const badge = rate < 5 ? 'health-critical' : rate < 8 ? 'health-needs-work' : rate < 12 ? 'health-healthy' : 'health-strong';
+  const badgeText = rate < 5 ? 'Critical' : rate < 8 ? 'Needs Work' : rate < 12 ? 'Healthy' : 'Strong';
+
+  let totalSubspecs = 0;
+  specs.forEach(s => totalSubspecs += s.subspecialties.length);
+
+  let html = `
+    <div class="city-header">
+      <div class="city-name">${market.name}, ${market.state}</div>
+      <div class="city-meta"><span>Pop ${(market.pop/1e6).toFixed(1)}M</span><span>${totalSubspecs} subspecialties</span><span class="health-badge ${badge}">${badgeText}</span></div>
+    </div>
+    <div class="city-stats city-stats-4">
+      <div class="city-stat"><div class="city-stat-value">${market.providers.toLocaleString()}</div><div class="city-stat-label">Total</div></div>
+      <div class="city-stat"><div class="city-stat-value" style="color:var(--accent-green)">${market.active}</div><div class="city-stat-label">Active</div></div>
+      <div class="city-stat"><div class="city-stat-value">${rate.toFixed(1)}%</div><div class="city-stat-label">Rate</div></div>
+      <div class="city-stat"><div class="city-stat-value">${specs.length}</div><div class="city-stat-label">Specialties</div></div>
+    </div>
+    <div class="section-title">Specialties (${specs.length})</div>`;
+
+  specs.forEach((spec, i) => {
+    const color = barColor(spec.rate);
+    html += `
+    <div class="spec-row" onclick="toggleSubspecs('ps${i}',this)">
+      <span class="spec-expand" id="arrow-ps${i}">▶</span>
+      <div class="spec-info"><div class="spec-name">${spec.name}</div><div class="spec-sub">${spec.category} · ${spec.subspecialties.length} subspecialties</div></div>
+      <div class="spec-bar-wrap"><div class="spec-bar"><div class="spec-bar-fill" style="width:${Math.min(spec.rate*5,100)}%;background:${color}"></div></div></div>
+      <div class="spec-counts"><div class="spec-count-main">${spec.active}</div><div class="spec-count-sub">/ ${spec.total}</div></div>
+      <div class="spec-pct" style="color:${color}">${spec.rate.toFixed(1)}%</div>
+    </div>
+    <div class="subspec-container" id="ps${i}">`;
+    spec.subspecialties.forEach(sub => {
+      const subRate = sub.total > 0 ? (sub.active/sub.total*100) : 0;
+      const sc = barColor(subRate);
+      html += `
+      <div class="subspec-row">
+        <div class="subspec-name">${sub.name.replace(spec.name+'_','')}</div>
+        <div class="subspec-bar-wrap"><div class="spec-bar"><div class="spec-bar-fill" style="width:${Math.min(subRate*5,100)}%;background:${sc}"></div></div></div>
+        <div class="subspec-counts"><div class="subspec-count-main">${sub.active}</div><div class="subspec-count-sub">/ ${sub.total}</div></div>
+        <div class="subspec-pct" style="color:${sc}">${subRate.toFixed(0)}%</div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  scroll.innerHTML = html;
+}
+
+function toggleSubspecs(id, el) {
+  const container = document.getElementById(id);
+  const arrow = document.getElementById('arrow-'+id);
+  if (container) {
+    container.classList.toggle('open');
+    if (arrow) arrow.classList.toggle('open');
+  }
+}
+
+// SYMPTOM PANEL
+function renderSymptomPanel(market) {
+  const scroll = document.getElementById('symptom-scroll');
+  const systems = generateMarketSymptoms(market);
+  const totalSearches = systems.reduce((s,x) => s+x.searches, 0);
+  const emergencyTotal = systems.reduce((s,x) => s+x.emergencyCount, 0);
+
+  let html = `
+    <div class="city-header symptom-header">
+      <div class="city-name">${market.name}, ${market.state}</div>
+      <div class="city-meta"><span>${totalSearches.toLocaleString()} symptom searches (30d)</span><span>${emergencyTotal} emergency-class symptoms</span></div>
+    </div>
+    <div class="city-stats city-stats-4">
+      <div class="city-stat"><div class="city-stat-value">${totalSearches.toLocaleString()}</div><div class="city-stat-label">Searches</div></div>
+      <div class="city-stat"><div class="city-stat-value">${systems.length}</div><div class="city-stat-label">Body Sys</div></div>
+      <div class="city-stat"><div class="city-stat-value" style="color:var(--accent-red)">${emergencyTotal}</div><div class="city-stat-label">Emergency</div></div>
+      <div class="city-stat"><div class="city-stat-value">${(totalSearches/market.pop*1000).toFixed(1)}</div><div class="city-stat-label">Per 1K</div></div>
+    </div>`;
+
+  // Confidence distribution bar
+  html += `<div class="summary-bar">
+    <div class="summary-segment" style="width:45%;background:var(--accent-green)" title="C5 Deterministic"></div>
+    <div class="summary-segment" style="width:30%;background:var(--accent-blue)" title="C4 High"></div>
+    <div class="summary-segment" style="width:15%;background:var(--accent-amber)" title="C3 Moderate"></div>
+    <div class="summary-segment" style="width:7%;background:var(--accent-purple)" title="C2 Low"></div>
+    <div class="summary-segment" style="width:3%;background:var(--accent-red)" title="C1 Emergency"></div>
+  </div>`;
+
+  html += `<div class="section-title">Body Systems by Search Volume</div>`;
+  systems.forEach(sys => {
+    const pct = totalSearches > 0 ? (sys.searches/totalSearches*100) : 0;
+    const trendIcon = sys.trend > 5 ? '↑' : sys.trend < -5 ? '↓' : '→';
+    const trendClass = sys.trend > 5 ? 'trend-up' : sys.trend < -5 ? 'trend-down' : 'trend-flat';
+    html += `
+    <div class="symptom-row">
+      <div class="symptom-name">${sys.system} <span style="color:var(--text-muted);font-size:10px;font-weight:400">(${sys.count} symptoms · avg ${sys.avgConf}%)</span></div>
+      <div class="symptom-count">${sys.searches}</div>
+      <div class="symptom-trend ${trendClass}">${trendIcon}${Math.abs(sys.trend)}%</div>
+    </div>`;
+  });
+
+  html += `<div class="section-title" style="margin-top:8px">Top Symptoms in Market</div>`;
+  TOP_SYMPTOMS.slice(0, 15).forEach(sym => {
+    const r = seededRand(sym.id.charCodeAt(8)*1000+market.pop);
+    const vol = Math.round(r() * 400 + 50);
+    const confClass = sym.emergency ? 'emergency' : sym.conf === 'C5' ? 'high' : sym.conf === 'C4' ? 'high' : sym.conf === 'C3' ? 'moderate' : 'low';
+    const trend = r() > 0.5 ? `↑${Math.round(r()*25)}%` : `↓${Math.round(r()*18)}%`;
+    const trendClass = trend.startsWith('↑') ? 'trend-up' : 'trend-down';
+    html += `
+    <div class="symptom-row">
+      <div class="symptom-name" style="font-size:11px">${sym.name} <span class="symptom-badge ${confClass}">${sym.conf}</span></div>
+      <div class="symptom-count" style="font-size:11px">${vol}</div>
+      <div class="symptom-trend ${trendClass}" style="font-size:9px">${trend}</div>
+    </div>`;
+  });
+
+  scroll.innerHTML = html;
+}
+
+// DIAGNOSIS PANEL
+function renderDxPanel(market) {
+  const scroll = document.getElementById('dx-scroll');
+  const systems = generateMarketDiagnoses(market);
+  const totalSearches = systems.reduce((s,x) => s+x.searches, 0);
+
+  let html = `
+    <div class="city-header diagnosis-header">
+      <div class="city-name">${market.name}, ${market.state}</div>
+      <div class="city-meta"><span>${totalSearches.toLocaleString()} dx searches (30d)</span><span>640 diagnoses tracked</span></div>
+    </div>
+    <div class="city-stats city-stats-5">
+      <div class="city-stat"><div class="city-stat-value">${totalSearches.toLocaleString()}</div><div class="city-stat-label">Searches</div></div>
+      <div class="city-stat"><div class="city-stat-value">${systems.length}</div><div class="city-stat-label">Systems</div></div>
+      <div class="city-stat"><div class="city-stat-value" style="color:var(--accent-blue)">490</div><div class="city-stat-label">Chronic</div></div>
+      <div class="city-stat"><div class="city-stat-value" style="color:var(--accent-amber)">107</div><div class="city-stat-label">Acute</div></div>
+      <div class="city-stat"><div class="city-stat-value" style="color:var(--accent-red)">18</div><div class="city-stat-label">Emergent</div></div>
+    </div>`;
+
+  // Acuity distribution bar
+  html += `<div class="summary-bar">
+    <div class="summary-segment" style="width:77%;background:var(--accent-blue)" title="Chronic (490)"></div>
+    <div class="summary-segment" style="width:17%;background:var(--accent-amber)" title="Acute (107)"></div>
+    <div class="summary-segment" style="width:3%;background:var(--accent-red)" title="Emergent (18)"></div>
+    <div class="summary-segment" style="width:3%;background:var(--accent-purple)" title="Critical (25)"></div>
+  </div>`;
+
+  html += `<div class="section-title">Body Systems by Dx Volume</div>`;
+  systems.forEach(sys => {
+    html += `
+    <div class="dx-row">
+      <div class="dx-info"><div class="dx-name">${sys.system}</div><div class="dx-meta">${sys.count} diagnoses · ${sys.chronic} chronic · ${sys.acute} acute · ${sys.emergent} emergent</div></div>
+      <div class="dx-count">${sys.searches}</div>
+    </div>`;
+  });
+
+  html += `<div class="section-title" style="margin-top:8px">Top Diagnoses in Market</div>`;
+  TOP_DIAGNOSES.forEach(dx => {
+    const r = seededRand(dx.id.charCodeAt(3)*1000+market.pop);
+    const vol = Math.round(r() * 300 + 30);
+    html += `
+    <div class="dx-row">
+      <div class="dx-info"><div class="dx-name" style="font-size:11px">${dx.name} <span class="dx-badge ${dx.acuity}">${dx.acuity}</span> <span class="dx-badge ${dx.complexity}">${dx.complexity}</span></div><div class="dx-meta">${dx.icd} · ${dx.subspec}</div></div>
+      <div class="dx-count" style="font-size:11px">${vol}</div>
+    </div>`;
+  });
+
+  scroll.innerHTML = html;
+}
+
+// DEMAND PANEL
+function renderDemandPanel(market) {
+  const scroll = document.getElementById('demand-scroll');
+  let html = `
+    <div class="city-header" style="background:linear-gradient(135deg,rgba(124,58,237,0.05),rgba(219,39,119,0.04))">
+      <div class="city-name">${market.name}, ${market.state}</div>
+      <div class="city-meta"><span>Pop ${(market.pop/1e6).toFixed(1)}M</span><span>${market.searches.toLocaleString()} total searches</span></div>
+    </div>
+    <div class="city-stats city-stats-3">
+      <div class="city-stat"><div class="city-stat-value">${market.searches.toLocaleString()}</div><div class="city-stat-label">Searches 30d</div></div>
+      <div class="city-stat"><div class="city-stat-value">${market.symptomSearches.toLocaleString()}</div><div class="city-stat-label">Symptom</div></div>
+      <div class="city-stat"><div class="city-stat-value">${market.dxSearches.toLocaleString()}</div><div class="city-stat-label">Diagnosis</div></div>
+    </div>
+    <div class="section-title">Demand Funnel</div>
+    <div style="padding:12px 14px">
+      <div style="margin-bottom:8px;font-size:12px">
+        <span style="font-weight:600">Symptom → Routing</span>
+        <span style="float:right;font-family:'JetBrains Mono',monospace;font-weight:700">${market.symptomSearches.toLocaleString()}</span>
+      </div>
+      <div style="height:6px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;margin-bottom:12px">
+        <div style="height:100%;width:100%;background:var(--accent-teal);border-radius:3px"></div>
+      </div>
+      <div style="margin-bottom:8px;font-size:12px">
+        <span style="font-weight:600">Diagnosis → Direct</span>
+        <span style="float:right;font-family:'JetBrains Mono',monospace;font-weight:700">${market.dxSearches.toLocaleString()}</span>
+      </div>
+      <div style="height:6px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;margin-bottom:12px">
+        <div style="height:100%;width:${(market.dxSearches/market.symptomSearches*100).toFixed(0)}%;background:var(--accent-purple);border-radius:3px"></div>
+      </div>
+      <div style="margin-bottom:8px;font-size:12px">
+        <span style="font-weight:600">HSO Matched</span>
+        <span style="float:right;font-family:'JetBrains Mono',monospace;font-weight:700">${Math.round(market.searches*0.72).toLocaleString()}</span>
+      </div>
+      <div style="height:6px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;margin-bottom:12px">
+        <div style="height:100%;width:72%;background:var(--accent-blue);border-radius:3px"></div>
+      </div>
+      <div style="margin-bottom:8px;font-size:12px">
+        <span style="font-weight:600">Transaction Created</span>
+        <span style="float:right;font-family:'JetBrains Mono',monospace;font-weight:700">${Math.round(market.searches*0.18).toLocaleString()}</span>
+      </div>
+      <div style="height:6px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:18%;background:var(--accent-green);border-radius:3px"></div>
+      </div>
+    </div>`;
+  scroll.innerHTML = html;
+}
+
+// GAP PANEL
+function renderGapPanel(market) {
+  const scroll = document.getElementById('gap-scroll');
+  const specs = generateMarketSpecialties(market);
+  const r = seededRand(market.id.charCodeAt(0)*5000);
+
+  let html = `
+    <div class="city-header" style="background:linear-gradient(135deg,rgba(220,38,38,0.04),rgba(217,119,6,0.03))">
+      <div class="city-name">${market.name}, ${market.state}</div>
+      <div class="city-meta"><span>Supply-Demand Analysis</span></div>
+    </div>
+    <div class="section-title">Biggest Gaps (Demand > Supply)</div>`;
+
+  const gaps = specs.map(s => {
+    const demand = Math.round(r() * 500 + 100);
+    const supply = s.active;
+    const gap = demand - supply;
+    return {...s, demand, gap};
+  }).sort((a,b) => b.gap - a.gap);
+
+  gaps.slice(0, 15).forEach(g => {
+    const severity = g.gap > 200 ? 'gap-severe' : g.gap > 100 ? 'gap-deficit' : g.gap > 0 ? 'gap-balanced' : 'gap-surplus';
+    const label = g.gap > 200 ? 'Severe Deficit' : g.gap > 100 ? 'Deficit' : g.gap > 0 ? 'Mild Gap' : 'Surplus';
+    html += `
+    <div class="spec-row" style="cursor:default">
+      <div class="spec-info"><div class="spec-name">${g.name}</div><div class="spec-sub">Demand: ${g.demand} · Supply: ${g.active} active</div></div>
+      <span class="health-badge ${severity}">${label}</span>
+      <div class="spec-pct" style="color:${g.gap>0?'var(--accent-red)':'var(--accent-green)'};font-weight:700">${g.gap>0?'+':''}${g.gap}</div>
+    </div>`;
+  });
+  scroll.innerHTML = html;
+}
+
+// API PANEL (static)
+function renderApiPanel() {
+  document.getElementById('api-scroll').innerHTML = `
+    <h3 style="margin-bottom:12px;font-size:16px">Sherlock Intelligence API v5</h3>
+    <p style="color:var(--text-secondary);margin-bottom:16px">Complete clinical taxonomy with 37 specialties, 225 subspecialties, 627 symptoms, and 640 diagnoses.</p>
+    
+    <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-weight:700;margin-bottom:6px;font-size:13px">Provider Endpoints</div>
+      <code style="font-family:'JetBrains Mono',monospace;font-size:11px;display:block;line-height:1.8">
+GET /v1/markets<br>
+GET /v1/markets/:id<br>
+GET /v1/providers?specialty=&subspecialty=&market=<br>
+GET /v1/specialties<br>
+GET /v1/subspecialties<br>
+GET /v1/subspecialties/:id/availability
+      </code>
+    </div>
+
+    <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-weight:700;margin-bottom:6px;font-size:13px;color:var(--accent-teal)">Symptom Endpoints</div>
+      <code style="font-family:'JetBrains Mono',monospace;font-size:11px;display:block;line-height:1.8">
+GET /v1/symptoms<br>
+GET /v1/symptoms/:id<br>
+GET /v1/symptoms/search?q=&body_system=&confidence=<br>
+GET /v1/symptoms/market/:marketId<br>
+GET /v1/symptoms/trending?market=&period=30d<br>
+GET /v1/symptoms/emergency — returns hard-emergency symptoms<br>
+GET /v1/symptoms/routing/:symptomId — returns subspecialty routing
+      </code>
+    </div>
+
+    <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-weight:700;margin-bottom:6px;font-size:13px;color:var(--accent-purple)">Diagnosis Endpoints</div>
+      <code style="font-family:'JetBrains Mono',monospace;font-size:11px;display:block;line-height:1.8">
+GET /v1/diagnoses<br>
+GET /v1/diagnoses/:id<br>
+GET /v1/diagnoses/search?q=&body_system=&acuity=&complexity=<br>
+GET /v1/diagnoses/market/:marketId<br>
+GET /v1/diagnoses/icd10/:code<br>
+GET /v1/diagnoses/routing/:diagnosisId — returns HSO + subspecialty
+      </code>
+    </div>
+
+    <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-weight:700;margin-bottom:6px;font-size:13px">Demand & Gap Endpoints</div>
+      <code style="font-family:'JetBrains Mono',monospace;font-size:11px;display:block;line-height:1.8">
+GET /v1/demand-signals?market=&specialty=&subspecialty=<br>
+GET /v1/demand-signals/gap?market=<br>
+GET /v1/demand-signals/symptoms?market=&period=<br>
+GET /v1/demand-signals/diagnoses?market=&period=<br>
+GET /v1/hsos?subspecialty=
+      </code>
+    </div>
+
+    <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-weight:700;margin-bottom:6px;font-size:13px">Data Summary</div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <tr><td style="padding:4px 0;color:var(--text-muted)">Specialties</td><td style="font-family:'JetBrains Mono',monospace;font-weight:700">37</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text-muted)">Subspecialties</td><td style="font-family:'JetBrains Mono',monospace;font-weight:700">225</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text-muted)">Symptoms</td><td style="font-family:'JetBrains Mono',monospace;font-weight:700">627</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text-muted)">Body Systems (Symptoms)</td><td style="font-family:'JetBrains Mono',monospace;font-weight:700">27</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text-muted)">Diagnoses</td><td style="font-family:'JetBrains Mono',monospace;font-weight:700">640</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text-muted)">Body Systems (Diagnoses)</td><td style="font-family:'JetBrains Mono',monospace;font-weight:700">10</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text-muted)">Emergency Symptoms</td><td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent-red)">45</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text-muted)">Confidence Tiers</td><td style="font-family:'JetBrains Mono',monospace;font-weight:700">C1–C5</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text-muted)">Markets Tracked</td><td style="font-family:'JetBrains Mono',monospace;font-weight:700">${MARKETS.length}</td></tr>
+      </table>
+    </div>
+
+    <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;padding:12px">
+      <div style="font-weight:700;margin-bottom:6px;font-size:13px">Example: Symptom Routing Response</div>
+      <pre style="font-family:'JetBrains Mono',monospace;font-size:10px;line-height:1.6;overflow-x:auto;white-space:pre-wrap">{
+  "symptom_id": "symptom_0001",
+  "name": "Knee Pain",
+  "body_system": "musculoskeletal",
+  "primary_subspecialty": "Ortho_AdultRecon",
+  "routing_logic": "Age >50 + gradual onset",
+  "secondary_subspecialties": [
+    "Ortho_Sports", "PMR_MSK", "Rheum_RA"
+  ],
+  "confidence": {
+    "score": 73,
+    "tier": "C4_High",
+    "action": "Route directly; show top + alternates"
+  },
+  "safety_gate": true,
+  "hard_emergency": false,
+  "primary_hso": "Ortho_AdultRecon_Eval_New",
+  "alternate_hsos": [
+    "Ortho_Sports_Eval_New",
+    "PMR_General_Eval_New",
+    "Rheum_RA_New"
+  ],
+  "disambiguation_questions": 5,
+  "emergency_escalation": "Unable to bear weight + fever → ED (septic joint)"
+}</pre>
+    </div>
+  `;
+}
+
+// =========================================================================
+// TAB SWITCHING
+// =========================================================================
+document.querySelectorAll('.sidebar-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    const tabName = tab.dataset.tab;
+    activeTab = tabName;
+    document.getElementById('panel-' + tabName).classList.add('active');
+    renderMap();
+    if (tabName === 'api') renderApiPanel();
+    else if (selectedMarket) selectMarket(selectedMarket);
+    else {
+      // Default to first market
+      selectMarket(MARKETS[0]);
+    }
+  });
+});
+
+// BODY SYSTEM CHIPS
+function renderSystemChips() {
+  // Symptom chips
+  const symChips = document.getElementById('symptom-system-chips');
+  let symHtml = `<div class="chip active" data-system="all" onclick="filterSymptomSystem('all',this)">All <span class="chip-count">627</span></div>`;
+  Object.entries(SYMPTOM_BODY_SYSTEMS).slice(0,12).forEach(([sys,d]) => {
+    symHtml += `<div class="chip" data-system="${sys}" onclick="filterSymptomSystem('${sys}',this)">${sys} <span class="chip-count">${d.count}</span></div>`;
+  });
+  symChips.innerHTML = symHtml;
+
+  // Dx chips
+  const dxChips = document.getElementById('dx-system-chips');
+  let dxHtml = `<div class="chip dx-active" data-system="all" onclick="filterDxSystem('all',this)">All <span class="chip-count">640</span></div>`;
+  Object.entries(DX_BODY_SYSTEMS).forEach(([sys,d]) => {
+    dxHtml += `<div class="chip" data-system="${sys}" onclick="filterDxSystem('${sys}',this)">${sys} <span class="chip-count">${d.count}</span></div>`;
+  });
+  dxChips.innerHTML = dxHtml;
+}
+
+function filterSymptomSystem(sys, el) {
+  document.querySelectorAll('#symptom-system-chips .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  // Re-render symptom panel with filter
+  if (selectedMarket) renderSymptomPanel(selectedMarket);
+}
+
+function filterDxSystem(sys, el) {
+  document.querySelectorAll('#dx-system-chips .chip').forEach(c => c.classList.remove('dx-active'));
+  el.classList.add('dx-active');
+  if (selectedMarket) renderDxPanel(selectedMarket);
+}
+
+// POPULATE FILTERS
+function populateFilters() {
+  const categories = [...new Set(Object.values(SPECIALTY_TAXONOMY).map(s => s.category))].sort();
+  const catSelect = document.getElementById('filter-category');
+  categories.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    catSelect.appendChild(opt);
+  });
+
+  const specSelect = document.getElementById('filter-specialty');
+  Object.keys(SPECIALTY_TAXONOMY).sort().forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    specSelect.appendChild(opt);
+  });
+
+  // Category filter changes specialty list
+  catSelect.addEventListener('change', () => {
+    const cat = catSelect.value;
+    specSelect.innerHTML = '<option value="all">All Specialties</option>';
+    const filtered = cat === 'all' ? Object.keys(SPECIALTY_TAXONOMY) : Object.entries(SPECIALTY_TAXONOMY).filter(([,v]) => v.category === cat).map(([k]) => k);
+    filtered.sort().forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      specSelect.appendChild(opt);
+    });
+    document.getElementById('filter-subspecialty').innerHTML = '<option value="all">All Subspecialties</option>';
+  });
+
+  // Specialty filter changes subspecialty list
+  specSelect.addEventListener('change', () => {
+    const spec = specSelect.value;
+    const subSelect = document.getElementById('filter-subspecialty');
+    subSelect.innerHTML = '<option value="all">All Subspecialties</option>';
+    if (spec !== 'all' && SPECIALTY_TAXONOMY[spec]) {
+      SPECIALTY_TAXONOMY[spec].subspecialties.forEach(sub => {
+        const opt = document.createElement('option');
+        opt.value = sub; opt.textContent = sub;
+        subSelect.appendChild(opt);
+      });
+    }
+  });
+}
+
+// INIT
+document.getElementById('stat-markets').textContent = MARKETS.length;
+renderMap();
+renderSystemChips();
+populateFilters();
+renderApiPanel();
+selectMarket(MARKETS[0]);
+</script>
+</body>
+</html>
